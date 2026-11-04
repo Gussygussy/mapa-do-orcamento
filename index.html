@@ -8,11 +8,15 @@
     <title>Orçamento Brasil 2025</title>
     <script>
       // Aplica o tema antes da renderização para evitar flash. localStorage é opcional.
+      // Ordem: escolha salva no botão > data-theme do ambiente que hospeda a página > sistema.
       (function () {
         var t = null;
         try { t = localStorage.getItem("tema"); } catch (e) {}
-        var escuro = t ? t === "escuro" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (escuro) document.documentElement.classList.add("dark");
+        var raiz = document.documentElement;
+        var hospede = raiz.getAttribute("data-theme");
+        var escuro = t ? t === "escuro" : hospede ? hospede === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (escuro) raiz.classList.add("dark");
+        raiz.style.colorScheme = escuro ? "dark" : "light";
       })();
     </script>
   </head>

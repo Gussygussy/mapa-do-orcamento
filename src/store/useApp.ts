@@ -136,6 +136,7 @@ export const useApp = create<AppState>((set, get) => ({
   toggleTema: () => {
     const tema: Tema = get().tema === "escuro" ? "claro" : "escuro";
     document.documentElement.classList.toggle("dark", tema === "escuro");
+    document.documentElement.style.colorScheme = tema === "escuro" ? "dark" : "light";
     try {
       localStorage.setItem("tema", tema);
     } catch {
@@ -155,7 +156,11 @@ export function bindURL(): () => void {
     const url = urlFromState(s);
     if (url !== ultimo) {
       ultimo = url;
-      window.history.pushState(null, "", url);
+      try {
+        window.history.pushState(null, "", url);
+      } catch {
+        /* alguns ambientes (iframes isolados) recusam pushState; o app segue funcionando */
+      }
     }
   });
   const onPop = () => {
