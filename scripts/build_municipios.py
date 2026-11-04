@@ -219,9 +219,9 @@ def construir(pop: dict, out: Path) -> dict:
         pct_e = round(100 * n_com / total_m, 1)
         pct_p = round(100 * pop_cob[chave] / pop["brasil"], 1)
         raiz = bt.somar(arvs, "municipios", f"{rotulo} dos municípios (agregado)", [fonte],
-                        f"Soma das contas anuais (DCA 2025) de {n_com:,} dos {total_m:,} municípios ({pct_e}% dos entes, "
-                        f"{pct_p}% da população). Quem não enviou a DCA fica de fora; o total real é um pouco maior."
-                        .replace(",", "."))
+                        f"Soma das contas anuais (DCA 2025) de {n_com:,} dos {total_m:,} municípios ".replace(",", ".")
+                        + f"({pct_fmt(pct_e)} dos entes, {pct_fmt(pct_p)} da população). "
+                        "Quem não enviou a DCA fica de fora; o total real é um pouco maior.")
         nacionais[chave] = raiz
         cobertura[f"{chave}_com_dados"] = n_com
         cobertura[f"{chave}_pct_entes"] = pct_e
