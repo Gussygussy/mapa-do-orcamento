@@ -75,12 +75,18 @@ def populacao() -> dict:
         if not row[1] or not str(row[2]).strip():
             continue
         try:
-            cod = f"{int(row[1]):02d}{str(row[2]).strip()}"
+            cm = row[2]
+            # a coluna vem como texto ("00015") em parte do arquivo e como número (10508.0) em outra
+            cm = f"{int(cm):05d}" if isinstance(cm, float) else str(cm).strip()
+            cod = f"{int(row[1]):02d}{cm}"
+            if len(cod) != 7:
+                continue
             muns[cod] = _num(row[4])
         except (ValueError, TypeError):
             continue
     assert len(ufs) == 27, f"esperava 27 UFs, achei {len(ufs)}"
     assert abs(sum(ufs.values()) - brasil) < 10, "soma das UFs não bate com o Brasil"
+    assert abs(sum(muns.values()) - brasil) < 10, "soma dos municípios não bate com o Brasil"
     out = {"brasil": brasil, "uf": ufs, "municipios": muns,
            "fonte": {"nome": "IBGE – Estimativas da população residente, 1º/jul/2025", "url": URL_POP}}
     (RAW / "populacao_2025.json").write_text(json.dumps(out, ensure_ascii=False), "utf-8")

@@ -1,0 +1,7 @@
+requests>=2.31
+pandas>=2.0
+openpyxl>=3.1
+xlrd>=2.0      # planilha .xls de população do IBGE
+pyshp>=2.3     # leitura do shapefile das UFs (IBGE)
+shapely>=2.0   # simplificação da malha das UFs
+# fetch_mps.py também usa o utilitário `pdftotext` (pacote poppler-utils)
