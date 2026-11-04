@@ -145,7 +145,26 @@ procure a versão atual e registre a mudança aqui.
 
 **Referência para % do PIB e per capita**
 - PIB nominal 2025: R$ 12.733.576 milhões (Tesouro, RTN dez/2025). Atualizar se o IBGE revisar.
+  → Revisado: o RTN de jul/2026 implica R$ 12.738.566 milhões (Tabela 2.2-A). O app usa o valor
+  derivado pelo pipeline (`meta.json`); `validate.py` confere com o número acima (tolerância 0,1%).
 - População 2025 por UF: estimativas do IBGE. Baixar via script, não fixar à mão.
+
+**Mudanças de fonte registradas (nov/2026)**
+- API `servicodados.ibge.gov.br` não respondeu a partir do ambiente de build. População e malha das
+  UFs vêm do FTP do IBGE (`ftp.ibge.gov.br/Estimativas_de_Populacao/Estimativas_2025/estimativa_dou_2025.xls`
+  e `geoftp.ibge.gov.br/.../municipio_2025/Brasil/BR_UF_2025.zip`). Ver `scripts/fetch_ibge.py`.
+- RTN: a planilha "Série Histórica" muda de nome todo mês; `scripts/fetch_rtn.py` descobre a URL pela
+  API CKAN do Tesouro Transparente (`package_show?id=resultado-do-tesouro-nacional`).
+- RREO da União: o Anexo 04 é publicado como `RREO-Anexo 04.2` (RPPS civil e FCDF), `04.3` (militares)
+  e `04.4 - RGPS`; `RREO-Anexo 04` vem vazio para a União.
+- Estados: receitas por tributo (ICMS, IPVA, ITCD, IRRF, FPE, Fundeb) vêm do RREO **Anexo 03**
+  (últimos 12 meses), pois o Anexo 01 só traz "Impostos".
+- Municípios: cerca de 1/3 não tem o RREO do 6º bimestre na API. O agregado usa a **DCA 2025,
+  Anexo I-E** (despesa por função/subfunção, empenhado), que cobre 5.506 de 5.570 municípios
+  (97,8% da população).
+- Resultado do RGPS: `scripts/fetch_mps.py` lê o PDF do MPS com `pdftotext` (poppler-utils).
+- Portal da Transparência e Siga Brasil não foram usados (exigem chave ou não têm API estável);
+  o detalhamento por programa/ação continua pendente.
 
 ## Dados de referência já levantados (seed e checagem)
 
@@ -233,8 +252,20 @@ npm install
 npm run dev            # servidor local
 npm run build
 npm run test           # vitest
+pip install -r scripts/requirements.txt          # + poppler-utils (pdftotext)
+python scripts/fetch_siconfi.py tudo             # ~30 min (municípios); usa cache em data_raw/
+python scripts/fetch_rtn.py && python scripts/fetch_mps.py && python scripts/fetch_ibge.py
 python scripts/build_tree.py && python scripts/validate.py
 ```
+
+## Estado atual (nov/2026)
+
+Fases 1 a 7 implementadas. Pendências conhecidas:
+- Encargos Especiais da União: RREO dá R$ 1.590,0 bi (com intra) e o CONORF R$ 1.455,6 bi; a
+  diferença (R$ 134 bi) não foi explicada pelas fontes. `validate.py` registra como aviso e a UI mostra nota.
+- Receitas municipais não foram agregadas (só despesas, via DCA).
+- Detalhamento por programa/ação (Bolsa Família, BPC etc.) aparece só como indicador do nó.
+- PIB por UF não está no pipeline, então "Comparar estados" não oferece % do PIB.
 
 ## Checagens antes de dizer "pronto"
 

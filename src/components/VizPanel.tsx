@@ -29,8 +29,8 @@ export function VizPanel({ root, node, path, parent, ctx, escuro, onSelect }: {
           value={viz}
           onChange={setViz}
           options={[
-            { value: "treemap", label: "Treemap" },
-            { value: "sunburst", label: "Sunburst" },
+            { value: "treemap", label: "Retângulos", title: "Mapa de árvore (treemap)" },
+            { value: "sunburst", label: "Anéis", title: "Gráfico de anéis (sunburst)" },
             { value: "barras", label: "Barras" },
           ]}
         />
