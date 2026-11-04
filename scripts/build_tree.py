@@ -827,6 +827,21 @@ def main() -> None:
             it["saldo"] = round(it["receita"] - it["despesa"], 1)
     write(OUT / "saldo.json", saldo)
 
+    # Comparar estados: valor de cada nó (id relativo, sem a UF) em cada UF
+    comparar: dict[str, dict[str, dict[str, float]]] = {"despesas": {}, "receitas": {}}
+
+    def coleta(n: Node, uf: str, destino: dict) -> None:
+        rel = n["id"].split(".", 1)[1]
+        destino.setdefault(rel, {})[uf] = n["valor"]
+        for f in n.get("filhos", []):
+            coleta(f, uf, destino)
+
+    for d, r in zip(desp_ufs, rec_ufs):
+        uf = d["id"].split(".")[0]
+        coleta(d, uf, comparar["despesas"])
+        coleta(r, uf, comparar["receitas"])
+    write(OUT / "comparar.json", comparar)
+
     pib = rtn.pib()
     meta = {
         "atualizado_em": date.today().isoformat(),

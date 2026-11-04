@@ -10,12 +10,15 @@ export interface Fonte {
 
 export interface Indicador {
   valor: number;
+  /** "R$ mi", "%", "benefícios", "municípios"… */
   unidade: string;
   fonte: Fonte;
+  nota?: string;
+  estimado?: boolean;
 }
 
 export interface Node {
-  /** caminho estável: "uniao.despesas.previdencia.rgps.rural" */
+  /** caminho estável: "uniao.despesas.previdencia_social.previdencia_basica.rural" */
   id: string;
   nome: string;
   /** em R$ milhões */
@@ -27,14 +30,51 @@ export interface Node {
   /** explicação curta exibida no painel */
   nota?: string;
   fonte: Fonte[];
-  /** ex.: beneficiarios, deficit, receita_propria, var_real_2024 */
+  /** ex.: beneficiarios, deficit, receita_propria */
   indicadores?: Record<string, Indicador>;
   /** histórico, se houver */
   serie?: { ano: number; valor: number }[];
   filhos?: Node[];
 }
 
+export interface UfArquivo {
+  uf: string;
+  nome: string;
+  cod_ibge: number;
+  despesas: Node;
+  receitas: Node;
+}
+
+export interface SaldoItem {
+  id: string;
+  nome: string;
+  receita: number;
+  despesa: number;
+  saldo: number;
+  base: Base;
+  fonte: Fonte[];
+  /** id do nó relacionado na árvore de despesas, se houver */
+  no?: string;
+  nota?: string;
+}
+
+export type SaldoArquivo = Record<string, SaldoItem[]>;
+
+/** valor de cada nó (id sem o 1º segmento) em cada UF */
+export type CompararArquivo = Record<"despesas" | "receitas", Record<string, Record<string, number>>>;
+
+export interface Meta {
+  atualizado_em: string;
+  exercicio: number;
+  pib: { valor: number; unidade: string; fonte: Fonte; nota: string };
+  populacao: { brasil: number; uf: Record<string, number>; fonte: Fonte };
+  ufs: { sigla: string; nome: string; cod_ibge: number }[];
+  municipios: { entes_total: number; entes_com_dados: number; pct_entes: number; pct_populacao: number };
+}
+
 export type Modo = "despesas" | "receitas" | "saldo";
-export type Esfera = "uniao" | "estados" | "estado" | "comparar";
+/** uniao | estados (agregado) | estado (UF específica) | municipios (agregado) | comparar */
+export type Esfera = "uniao" | "estados" | "estado" | "municipios" | "comparar";
 export type Unidade = "reais" | "pct_total" | "pct_pib" | "per_capita";
+export type Visualizacao = "treemap" | "sunburst" | "barras";
 export type Tema = "claro" | "escuro";
