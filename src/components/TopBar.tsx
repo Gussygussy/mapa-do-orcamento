@@ -1,9 +1,33 @@
 import type { Esfera, Meta, Modo, Unidade } from "../types";
-import { useApp } from "../store/useApp";
+import type { MunicipioIndice } from "../lib/municipio";
+import { useApp, type MunEscopo } from "../store/useApp";
+import { MunicipioBusca } from "./MunicipioBusca";
 import { Segmented } from "./ui";
 
-export function TopBar({ meta }: { meta?: Meta }) {
-  const { modo, esfera, uf, unidade, tema, setModo, setEsfera, setUf, setUnidade, toggleTema, setDrawer, setGlossario } = useApp();
+function SelectUf({ valor, ufs, onChange }: { valor: string; ufs: Meta["ufs"]; onChange: (uf: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">UF</span>
+      <select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
+      >
+        {ufs.map((u) => (
+          <option key={u.sigla} value={u.sigla}>
+            {u.nome}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function TopBar({ meta, indice }: { meta?: Meta; indice?: MunicipioIndice[] }) {
+  const {
+    modo, esfera, uf, munEscopo, munUf, munCod, unidade, tema, setModo, setEsfera, setUf, setMunEscopo, setMunUf,
+    setMunCod, setUnidade, toggleTema, setDrawer, setGlossario,
+  } = useApp();
   const ufs = meta?.ufs ?? [];
   return (
     <header className="border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
@@ -39,11 +63,7 @@ export function TopBar({ meta }: { meta?: Meta }) {
           <Segmented<Esfera>
             label="Esfera"
             value={esfera}
-            onChange={(e) => {
-              if (e === "comparar" && modo === "saldo") setModo("despesas");
-              if (e === "municipios" && modo === "saldo") setModo("despesas");
-              setEsfera(e);
-            }}
+            onChange={setEsfera}
             options={[
               { value: "uniao", label: "União" },
               { value: "estados", label: "Estados (agregado)" },
@@ -52,21 +72,22 @@ export function TopBar({ meta }: { meta?: Meta }) {
               { value: "comparar", label: "Comparar estados" },
             ]}
           />
-          {esfera === "estado" && (
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">UF</span>
-              <select
-                value={uf}
-                onChange={(e) => setUf(e.target.value)}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
-              >
-                {ufs.map((u) => (
-                  <option key={u.sigla} value={u.sigla}>
-                    {u.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {esfera === "estado" && <SelectUf valor={uf} ufs={ufs} onChange={setUf} />}
+          {esfera === "municipios" && (
+            <>
+              <Segmented<MunEscopo>
+                label="Abrangência"
+                value={munEscopo}
+                onChange={setMunEscopo}
+                options={[
+                  { value: "brasil", label: "Todos" },
+                  { value: "uf", label: "De um estado" },
+                  { value: "municipio", label: "Um município" },
+                ]}
+              />
+              {munEscopo === "uf" && <SelectUf valor={munUf} ufs={ufs} onChange={setMunUf} />}
+              {munEscopo === "municipio" && <MunicipioBusca indice={indice} codAtual={munCod} onEscolher={setMunCod} />}
+            </>
           )}
         </div>
 

@@ -3,7 +3,7 @@
 Uso:
     python scripts/fetch_siconfi.py uniao        # União: anexos 01, 02, 04.2, 04.3, 04.4
     python scripts/fetch_siconfi.py estados      # 26 estados + DF: anexos 01, 02, 03, 04
-    python scripts/fetch_siconfi.py municipios   # 5.570 municípios: DCA 2025 Anexo I-E (demora ~30 min)
+    python scripts/fetch_siconfi.py municipios   # 5.570 municípios: DCA 2025 Anexos I-E (despesa) e I-C (receita), ~1 h
     python scripts/fetch_siconfi.py tudo
 
 Os downloads ficam em data_raw/siconfi/ (cache). Rodar de novo só baixa o que falta.
@@ -56,7 +56,7 @@ def main(alvo: str) -> None:
     if alvo in ("estados", "tudo"):
         tarefas += [(a, u) for u in ufs for a in ANEXOS_COMPLETOS]
     if alvo in ("municipios", "tudo"):
-        tarefas += [("DCA-Anexo I-E", m) for m in muns]
+        tarefas += [(a, m) for m in muns for a in ("DCA-Anexo I-E", "DCA-Anexo I-C")]
     print(f"Baixando {len(tarefas)} demonstrativos…")
     baixar(tarefas)
 

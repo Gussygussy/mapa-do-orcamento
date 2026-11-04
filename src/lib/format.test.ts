@@ -21,6 +21,7 @@ describe("outros formatos", () => {
   it("formata percentuais e reais", () => {
     expect(formatPct(28.14)).toBe("28,1%");
     expect(formatPct(0.05)).toBe("0,05%");
+    expect(formatPct(0.0004)).toBe("< 0,01%");
     expect(formatReais(18434.2)).toBe("R$ 18.434");
   });
   it("formata indicador conforme a unidade", () => {

@@ -99,23 +99,26 @@ def node(id_: str, nome: str, valor: float, base: str, fonte: list[dict] | dict,
     return n
 
 
-def fechar(n: Node) -> Node:
-    """Arredonda, ordena filhos e cria "Outros / não detalhado" quando a soma é menor que o pai."""
+def fechar(n: Node, casas: int = 1) -> Node:
+    """Arredonda, ordena filhos e cria "Outros / não detalhado" quando a soma é menor que o pai.
+
+    `casas`: decimais em R$ milhões (1 = R$ 100 mil; municípios usam 3 = R$ 1 mil, senão o
+    arredondamento de muitas parcelas pequenas passa do total do pai)."""
     filhos = n.get("filhos")
     if filhos:
         for f in filhos:
-            fechar(f)
+            fechar(f, casas)
         filhos.sort(key=lambda f: (f["id"].endswith(".outros"), -f["valor"]))
         soma = sum(f["valor"] for f in filhos)
         dif = n["valor"] - soma
-        tol = max(0.05, abs(n["valor"]) * 0.0005)
+        tol = max(0.5 * 10 ** -casas, abs(n["valor"]) * 0.0005)
         if dif > tol and not any(f["id"].endswith(".outros") for f in filhos):
             filhos.append(node(
                 f"{n['id']}.outros", "Outros / não detalhado", dif, n["base"], n["fonte"],
                 estimado=True,
                 nota="Diferença entre o total e a soma dos itens detalhados (calculada).",
             ))
-    n["valor"] = round(n["valor"], 1)
+    n["valor"] = round(n["valor"], casas)
     return n
 
 
@@ -848,52 +851,6 @@ def somar(arvores: list[Node], prefixo: str, nome: str, fonte: list[dict], nota:
 
 # ------------------------------------------------------------------ Municípios
 
-def municipios(pop: dict) -> tuple[Node, dict]:
-    entes = siconfi.entes()
-    muns = [e for e in entes if e["esfera"] == "M"]
-    agg: dict[str, dict] = {}
-    total = 0.0
-    com_dados = 0
-    pop_coberta = 0
-    for e in muns:
-        try:
-            items = siconfi.rreo("DCA-Anexo I-E", e["cod_ibge"], offline=True)
-        except FileNotFoundError:
-            continue
-        if not items:
-            continue
-        t, funcs = funcoes_dca(items)
-        if t <= 0:
-            continue
-        com_dados += 1
-        pop_coberta += pop["municipios"].get(str(e["cod_ibge"]), 0)
-        total += t
-        for fn, d in funcs.items():
-            a = agg.setdefault(fn, {"valor": 0.0, "subs": {}})
-            a["valor"] += d["valor"]
-            for s, v in d["subs"].items():
-                a["subs"][s] = a["subs"].get(s, 0.0) + v
-    cobertura = {
-        "entes_total": len(muns), "entes_com_dados": com_dados,
-        "pct_entes": round(100 * com_dados / len(muns), 1),
-        "pct_populacao": round(100 * pop_coberta / pop["brasil"], 1),
-    }
-    f = {"nome": "Siconfi/Tesouro – DCA 2025, Anexo I-E (despesa por função), todos os municípios",
-         "url": "https://apidatalake.tesouro.gov.br/ords/siconfi/tt/dca?an_exercicio=2025&no_anexo=DCA-Anexo%20I-E",
-         "tabela": "Despesas empenhadas, exceto intraorçamentárias"}
-    root = arvore_funcoes("municipios.despesas", "Despesas dos municípios (agregado)", total, agg, f, nota=(
-        f"Soma das contas anuais (DCA 2025) de {com_dados:,} dos {len(muns):,} municípios "
-        f"({cobertura['pct_entes']}% dos entes, {cobertura['pct_populacao']}% da população). "
-        "Municípios que não enviaram a DCA ficam de fora; o total real é um pouco maior.").replace(",", "."))
-    root["indicadores"] = {
-        "deficit_atuarial_rpps": indicador(-seed.AEPS_DEFICIT_ATUARIAL_RPPS_MUN_BI * 1e3, "R$ mi", seed.AEPS,
-                                           "Déficit ATUARIAL dos RPPS municipais (valor presente de compromissos futuros), "
-                                           "não é gasto anual."),
-        "entes_com_dados": indicador(com_dados, "municípios", f),
-    }
-    return fechar(root), cobertura
-
-
 # ------------------------------------------------------------------ main
 
 def main() -> None:
@@ -941,9 +898,12 @@ def main() -> None:
     write(OUT / "estados_despesas.json", ed)
     write(OUT / "estados_receitas.json", er)
 
-    # Municípios
-    md, cobertura = municipios(pop)
-    write(OUT / "municipios_despesas.json", md)
+    # Municípios: árvore de cada município, soma por UF e soma nacional (build_municipios.py)
+    import build_municipios
+    mun = build_municipios.construir(pop, OUT)
+    cobertura = mun["cobertura"]
+    md = mun["nacionais"]["despesas"]
+    mr = mun["nacionais"]["receitas"]
 
     # Saldo (receita x despesa) onde o nó existe nos dois lados
     v = mps["valores_milhoes"]
@@ -1023,6 +983,12 @@ def main() -> None:
         uf = d["id"].split(".")[0]
         coleta(d, uf, comparar["despesas"])
         coleta(r, uf, comparar["receitas"])
+    # mesma tabela para a soma dos municípios de cada UF (ids "m-SP.despesas..." -> "despesas...")
+    comparar["municipios_despesas"], comparar["municipios_receitas"] = {}, {}
+    for uf, g in mun["por_uf"].items():
+        for chave in ("despesas", "receitas"):
+            if g[chave]:
+                coleta(g[chave], uf, comparar[f"municipios_{chave}"])
     write(OUT / "comparar.json", comparar)
 
     pib = rtn.pib()
@@ -1040,7 +1006,7 @@ def main() -> None:
     write(OUT / "meta.json", meta)
     print(f"União: despesas {ud['valor']/1e3:,.1f} bi; receitas {ur['valor']/1e3:,.1f} bi")
     print(f"Estados: despesas {ed['valor']/1e3:,.1f} bi; receitas {er['valor']/1e3:,.1f} bi")
-    print(f"Municípios: despesas {md['valor']/1e3:,.1f} bi; cobertura {cobertura}")
+    print(f"Municípios: despesas {md['valor']/1e3:,.1f} bi; receitas {mr['valor']/1e3:,.1f} bi; cobertura {cobertura}")
     print(f"PIB 2025: {pib:,.0f} mi")
 
 

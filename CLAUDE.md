@@ -112,7 +112,10 @@ interface Node {
 
 **Controles globais (barra superior):**
 - Modo: **Despesas | Receitas | Saldo** (Saldo compara receita e despesa quando o nó existe nos dois lados, ex.: RGPS)
-- Esfera: **União | Estados (agregado) | Estado específico | Comparar estados**
+- Esfera: **União | Estados (agregado) | Estado específico | Municípios | Comparar estados**
+  - Municípios: abrangência **Todos | De um estado | Um município** (busca por nome); ids `municipios.*`,
+    `m-<UF>.*` e `m<cód. IBGE>.*`
+  - Comparar estados: camada **Governo estadual | Municípios do estado**
 - Unidade: **R$ | % do total | % do PIB | per capita**
 - "Comparar estados": mapa coroplético do Brasil + ranking, com a métrica do nó selecionado
 
@@ -159,9 +162,13 @@ procure a versão atual e registre a mudança aqui.
   e `04.4 - RGPS`; `RREO-Anexo 04` vem vazio para a União.
 - Estados: receitas por tributo (ICMS, IPVA, ITCD, IRRF, FPE, Fundeb) vêm do RREO **Anexo 03**
   (últimos 12 meses), pois o Anexo 01 só traz "Impostos".
-- Municípios: cerca de 1/3 não tem o RREO do 6º bimestre na API. O agregado usa a **DCA 2025,
-  Anexo I-E** (despesa por função/subfunção, empenhado), que cobre 5.506 de 5.570 municípios
-  (97,8% da população).
+- Municípios: cerca de 1/3 não tem o RREO do 6º bimestre na API. Usa-se a **DCA 2025**:
+  Anexo I-E (despesa por função/subfunção, empenhado; 5.506 de 5.570 municípios, 97,8% da população)
+  e Anexo I-C (receita bruta realizada por natureza, até 5 níveis; deduções do Fundeb como indicador).
+  `scripts/build_municipios.py` gera uma árvore por município (`public/data/municipios/<cod>.json`,
+  formato compacto reconstruído por `src/lib/municipio.ts`), a soma por UF (`municipios_uf/<UF>.json`),
+  a soma nacional e `municipios_index.json` (busca). Valores municipais são arredondados a R$ 1 mil
+  (arredondar a R$ 100 mil fazia a soma das parcelas passar do total em municípios pequenos).
 - Resultado do RGPS: `scripts/fetch_mps.py` lê o PDF do MPS com `pdftotext` (poppler-utils).
 - Programas e ações da União: download em lote do Portal da Transparência, SEM chave
   (`dadosabertos-download.cgu.gov.br/PortalDaTransparencia/saida/despesas-execucao/AAAAMM_Despesas.zip`,
@@ -268,7 +275,7 @@ python scripts/build_tree.py && python scripts/validate.py
 Fases 1 a 7 implementadas. Pendências conhecidas:
 - Encargos Especiais da União: RREO dá R$ 1.590,0 bi (com intra) e o CONORF R$ 1.455,6 bi; a
   diferença (R$ 134 bi) não foi explicada pelas fontes. `validate.py` registra como aviso e a UI mostra nota.
-- Receitas municipais não foram agregadas (só despesas, via DCA).
+- Municípios sem DCA aparecem como "dado não disponível"; as somas por UF e a nacional registram a cobertura.
 - "Serviço da dívida externa": o Portal (R$ 26,3 bi) passa do RREO (R$ 20,4 bi); ali as ações não são penduradas.
 - PIB por UF não está no pipeline, então "Comparar estados" não oferece % do PIB.
 

@@ -37,7 +37,8 @@ export function formatPct(pct: number): string {
   if (!Number.isFinite(pct)) return "—";
   const sinal = pct < 0 ? MENOS : "";
   const v = Math.abs(pct);
-  const txt = v === 0 ? "0" : v < 0.1 ? nf(2, 2).format(v) : v < 10 ? nf1.format(v) : nf1.format(v);
+  if (v > 0 && v < 0.005) return `${sinal ? "> −" : "< "}0,01%`;
+  const txt = v === 0 ? "0" : v < 0.1 ? nf(2, 2).format(v) : nf1.format(v);
   return `${sinal}${txt}%`;
 }
 

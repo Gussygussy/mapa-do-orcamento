@@ -2,11 +2,22 @@ import { create } from "zustand";
 import type { Esfera, Modo, Tema, Unidade, Visualizacao } from "../types";
 import { relId } from "../lib/tree";
 
+/** Abrangência dentro da esfera "municipios". */
+export type MunEscopo = "brasil" | "uf" | "municipio";
+/** Camada exibida em "Comparar estados": governo estadual ou soma dos municípios da UF. */
+export type Camada = "estados" | "municipios";
+
 export interface AppState {
   modo: Modo;
   esfera: Esfera;
   /** UF selecionada quando esfera = "estado" */
   uf: string;
+  /** esfera = "municipios": todos, os de uma UF ou um município */
+  munEscopo: MunEscopo;
+  munUf: string;
+  /** código IBGE do município (7 dígitos) */
+  munCod: number | null;
+  camada: Camada;
   unidade: Unidade;
   viz: Visualizacao;
   /** id do nó selecionado; null = raiz da árvore atual */
@@ -17,6 +28,10 @@ export interface AppState {
   setModo: (m: Modo) => void;
   setEsfera: (e: Esfera) => void;
   setUf: (uf: string) => void;
+  setMunEscopo: (e: MunEscopo) => void;
+  setMunUf: (uf: string) => void;
+  setMunCod: (cod: number) => void;
+  setCamada: (c: Camada) => void;
   setUnidade: (u: Unidade) => void;
   setViz: (v: Visualizacao) => void;
   select: (id: string | null) => void;
@@ -25,21 +40,31 @@ export interface AppState {
   setGlossario: (open: boolean) => void;
 }
 
+type Local = Pick<AppState, "esfera" | "uf" | "munEscopo" | "munUf" | "munCod" | "camada">;
+
 /** Árvore exibida: no modo Saldo a navegação usa a árvore de despesas. */
 export function treeModo(modo: Modo): "despesas" | "receitas" {
   return modo === "receitas" ? "receitas" : "despesas";
 }
 
-/** Prefixo dos ids da árvore atual (1º segmento). */
-export function esferaPrefix(esfera: Esfera, uf: string): string {
-  if (esfera === "estado") return uf;
-  if (esfera === "comparar") return "estados";
-  return esfera;
+/** Prefixo dos ids da árvore atual (1º segmento): "uniao", "SP", "m-SP", "m3550308"… */
+export function esferaPrefix(s: Local): string {
+  switch (s.esfera) {
+    case "estado":
+      return s.uf;
+    case "comparar":
+      return s.camada === "municipios" ? "municipios" : "estados";
+    case "municipios":
+      if (s.munEscopo === "uf") return `m-${s.munUf}`;
+      if (s.munEscopo === "municipio" && s.munCod) return `m${s.munCod}`;
+      return "municipios";
+    default:
+      return s.esfera;
+  }
 }
 
-export function rootId(esfera: Esfera, uf: string, modo: Modo): string {
-  if (esfera === "municipios") return "municipios.despesas";
-  return `${esferaPrefix(esfera, uf)}.${treeModo(modo)}`;
+export function rootId(s: Local, modo: Modo): string {
+  return `${esferaPrefix(s)}.${treeModo(modo)}`;
 }
 
 function temaInicial(): Tema {
@@ -65,41 +90,54 @@ export function stateFromURL(search: string): Partial<AppState> {
   if (unidade && UNIDADES.includes(unidade)) out.unidade = unidade;
   if (viz && VIZ.includes(viz)) out.viz = viz;
   if (no) {
-    const [pref, segModo] = no.split(".");
-    if (pref === "uniao" || pref === "estados" || pref === "municipios") out.esfera = pref;
-    else if (pref && UF_RE.test(pref)) {
-      out.esfera = "estado";
-      out.uf = pref;
-    }
+    const [pref = "", segModo] = no.split(".");
+    let mm: RegExpMatchArray | null;
+    if (pref === "uniao" || pref === "estados") out.esfera = pref;
+    else if (pref === "municipios") Object.assign(out, { esfera: "municipios", munEscopo: "brasil" });
+    else if ((mm = pref.match(/^m-([A-Z]{2})$/))) Object.assign(out, { esfera: "municipios", munEscopo: "uf", munUf: mm[1] });
+    else if ((mm = pref.match(/^m(\d{7})$/)))
+      Object.assign(out, { esfera: "municipios", munEscopo: "municipio", munCod: Number(mm[1]) });
+    else if (UF_RE.test(pref)) Object.assign(out, { esfera: "estado", uf: pref });
     if (segModo === "despesas" || segModo === "receitas") out.modo = segModo;
     out.selectedId = no;
   }
   if (esfera && ESFERAS.includes(esfera)) {
     out.esfera = esfera;
-    if (esfera === "estado") {
-      const uf = p.get("uf");
-      if (uf && UF_RE.test(uf)) out.uf = uf;
-    }
+    if (esfera === "comparar") out.camada = p.get("camada") === "municipios" ? "municipios" : "estados";
   }
   if (modo && MODOS.includes(modo)) out.modo = modo;
   return out;
 }
 
-export function urlFromState(s: Pick<AppState, "modo" | "esfera" | "uf" | "unidade" | "viz" | "selectedId">): string {
+export function urlFromState(
+  s: Local & Pick<AppState, "modo" | "unidade" | "viz" | "selectedId">,
+): string {
   const p = new URLSearchParams();
-  const raiz = rootId(s.esfera, s.uf, s.modo);
-  p.set("no", s.selectedId ?? raiz);
+  p.set("no", s.selectedId ?? rootId(s, s.modo));
   if (s.modo === "saldo") p.set("modo", "saldo");
-  if (s.esfera === "comparar") p.set("esfera", "comparar");
+  if (s.esfera === "comparar") {
+    p.set("esfera", "comparar");
+    if (s.camada === "municipios") p.set("camada", "municipios");
+  }
   if (s.unidade !== "reais") p.set("unidade", s.unidade);
   if (s.viz !== "treemap") p.set("viz", s.viz);
   return `?${p.toString()}`;
+}
+
+/** Leva o nó selecionado (caminho relativo) para outra árvore. */
+function mover(selectedId: string | null, novo: Local): string | null {
+  const r = selectedId ? relId(selectedId) : "";
+  return r ? `${esferaPrefix(novo)}.${r}` : null;
 }
 
 export const useApp = create<AppState>((set, get) => ({
   modo: "despesas",
   esfera: "uniao",
   uf: "SP",
+  munEscopo: "brasil",
+  munUf: "SP",
+  munCod: null,
+  camada: "estados",
   unidade: "reais",
   viz: "treemap",
   selectedId: null,
@@ -116,19 +154,32 @@ export const useApp = create<AppState>((set, get) => ({
     const s = get();
     let unidade = s.unidade;
     if (esfera === "comparar" && unidade === "pct_pib") unidade = "per_capita";
-    // tenta manter o mesmo nó (caminho relativo) na nova esfera
-    const atual = s.selectedId;
-    let selectedId: string | null = null;
-    if (atual && esfera !== "municipios") {
-      const r = relId(atual);
-      selectedId = r ? `${esferaPrefix(esfera, s.uf)}.${r}` : null;
-    }
-    set({ esfera, unidade, selectedId, drawerOpen: false });
+    const modo = (esfera === "municipios" || esfera === "comparar") && s.modo === "saldo" ? "despesas" : s.modo;
+    const novo = { ...s, esfera };
+    set({ esfera, unidade, modo, selectedId: mover(s.selectedId, novo), drawerOpen: false });
   },
   setUf: (uf) => {
     const s = get();
-    const r = s.selectedId ? relId(s.selectedId) : "";
-    set({ uf, esfera: "estado", selectedId: r ? `${uf}.${r}` : null });
+    set({ uf, esfera: "estado", selectedId: mover(s.selectedId, { ...s, esfera: "estado", uf }) });
+  },
+  setMunEscopo: (munEscopo) => {
+    const s = get();
+    const novo = { ...s, esfera: "municipios" as const, munEscopo };
+    set({ esfera: "municipios", munEscopo, selectedId: mover(s.selectedId, novo) });
+  },
+  setMunUf: (munUf) => {
+    const s = get();
+    const novo = { ...s, esfera: "municipios" as const, munEscopo: "uf" as const, munUf };
+    set({ esfera: "municipios", munEscopo: "uf", munUf, selectedId: mover(s.selectedId, novo) });
+  },
+  setMunCod: (munCod) => {
+    const s = get();
+    const novo = { ...s, esfera: "municipios" as const, munEscopo: "municipio" as const, munCod };
+    set({ esfera: "municipios", munEscopo: "municipio", munCod, selectedId: mover(s.selectedId, novo), drawerOpen: false });
+  },
+  setCamada: (camada) => {
+    const s = get();
+    set({ camada, selectedId: mover(s.selectedId, { ...s, camada }) });
   },
   setUnidade: (unidade) => set({ unidade }),
   setViz: (viz) => set({ viz }),
@@ -166,7 +217,10 @@ export function bindURL(): () => void {
   const onPop = () => {
     const parcial = stateFromURL(window.location.search);
     ultimo = window.location.search || ultimo;
-    useApp.setState({ modo: "despesas", esfera: "uniao", unidade: "reais", viz: "treemap", selectedId: null, ...parcial });
+    useApp.setState({
+      modo: "despesas", esfera: "uniao", munEscopo: "brasil", camada: "estados", unidade: "reais", viz: "treemap",
+      selectedId: null, ...parcial,
+    });
   };
   window.addEventListener("popstate", onPop);
   return () => {

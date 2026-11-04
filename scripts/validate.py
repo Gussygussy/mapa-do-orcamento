@@ -75,6 +75,17 @@ def checar_no(n: dict, arq: str, ids: set[str], pai: dict | None = None) -> int:
     return total
 
 
+def expandir(c: dict, prefixo: str, base: str, fonte: dict) -> dict:
+    """Formato compacto dos municípios -> Node completo (mesma regra de src/lib/municipio.ts)."""
+    id_ = f"{prefixo}.{c['s']}"
+    n = {"id": id_, "nome": c["n"], "valor": c["v"], "base": base, "fonte": [fonte]}
+    if c.get("e"):
+        n["estimado"] = True
+    if c.get("c"):
+        n["filhos"] = [expandir(f, id_, base, fonte) for f in c["c"]]
+    return n
+
+
 def carregar(nome: str) -> dict:
     return json.loads((DATA / nome).read_text("utf-8"))
 
@@ -105,7 +116,7 @@ def perto(rotulo: str, obtido: float, esperado: float, tol_pct: float = 1.0, so_
 
 def main() -> None:
     arquivos = ["uniao_despesas.json", "uniao_receitas.json", "estados_despesas.json", "estados_receitas.json",
-                "municipios_despesas.json"]
+                "municipios_despesas.json", "municipios_receitas.json"]
     contagem = 0
     for a in arquivos:
         contagem += checar_no(carregar(a), a, set())
@@ -116,6 +127,24 @@ def main() -> None:
     n_ufs = len(list((DATA / "estados").glob("*.json")))
     if n_ufs != 27:
         erro(f"esperava 27 arquivos em estados/, achei {n_ufs}")
+    for p in sorted((DATA / "municipios_uf").glob("*.json")):
+        d = json.loads(p.read_text("utf-8"))
+        for chave in ("despesas", "receitas"):
+            if d[chave]:
+                contagem += checar_no(d[chave], f"municipios_uf/{p.name}", set())
+    # Municípios: formato compacto, expandido como o app faz (src/lib/municipio.ts)
+    n_mun = 0
+    for p in sorted((DATA / "municipios").glob("*.json")):
+        d = json.loads(p.read_text("utf-8"))
+        n_mun += 1
+        for chave, base in (("despesas", "empenhado"), ("receitas", "arrecadado")):
+            if d[chave]:
+                contagem += checar_no(expandir(d[chave], f"m{d['cod']}", base, d["fontes"][chave]),
+                                      f"municipios/{p.name}", set())
+    indice = carregar("municipios_index.json")
+    com_dados = sum(1 for m in indice if m[4] or m[5])
+    if com_dados != n_mun:
+        erro(f"municipios_index.json marca {com_dados} municípios com dados, mas há {n_mun} arquivos")
 
     meta = carregar("meta.json")
     saldo = carregar("saldo.json")
@@ -167,9 +196,11 @@ def main() -> None:
     print(f"  info ICMS bruto das 27 UFs: {icms['valor'] / 1e3:,.1f} bi (IFI, líquido da cota municipal: "
           f"{seed.IFI_RECEITAS_BI['ICMS']:,.1f} bi)")
     mun = meta["municipios"]
-    print(f"  info municípios: {mun['entes_com_dados']}/{mun['entes_total']} entes, {mun['pct_populacao']}% da população")
-    if mun["pct_populacao"] < 90:
-        avisos.append(f"cobertura municipal baixa: {mun['pct_populacao']}% da população")
+    for chave in ("despesas", "receitas"):
+        print(f"  info municípios ({chave}): {mun[f'{chave}_com_dados']}/{mun['entes_total']} entes, "
+              f"{mun[f'{chave}_pct_populacao']}% da população")
+        if mun[f"{chave}_pct_populacao"] < 90:
+            avisos.append(f"cobertura municipal baixa em {chave}: {mun[f'{chave}_pct_populacao']}% da população")
 
     print(f"\n{contagem} nós verificados; {len(avisos)} avisos; {len(erros)} erros")
     for a in avisos:

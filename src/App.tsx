@@ -1,6 +1,6 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import { bindURL, rootId, useApp } from "./store/useApp";
-import { useComparar, useMeta, useSaldo, useTree } from "./lib/data";
+import { useComparar, useMeta, useMunicipiosIndice, useSaldo, useTree } from "./lib/data";
 import { findNode, parentOf, pathTo } from "./lib/tree";
 import type { UnitCtx } from "./lib/units";
 import { TopBar } from "./components/TopBar";
@@ -14,15 +14,20 @@ import { Aviso, Carregando } from "./components/ui";
 
 export default function App() {
   useEffect(() => bindURL(), []);
-  const { modo, esfera, uf, unidade, selectedId, tema, drawerOpen, select, setDrawer } = useApp();
+  const app = useApp();
+  const { modo, esfera, uf, munEscopo, munUf, munCod, unidade, selectedId, tema, drawerOpen, select, setDrawer } = app;
   const escuro = tema === "escuro";
   const meta = useMeta();
-  const tree = useTree(esfera, uf, modo);
+  const indice = useMunicipiosIndice(esfera === "municipios");
+  const mun = munEscopo === "municipio" && munCod ? indice.data?.find((m) => m[0] === munCod) : undefined;
+  // o índice diz se o município tem o dado; assim não se pede um arquivo que não existe
+  const semDado = esfera === "municipios" && munEscopo === "municipio" && !!mun && !(modo === "receitas" ? mun[5] : mun[4]);
+  const tree = useTree(app, modo, semDado);
   const saldo = useSaldo(modo === "saldo");
   const comparar = useComparar(esfera === "comparar");
 
   const root = tree.data;
-  const raizId = rootId(esfera, uf, modo);
+  const raizId = rootId(app, modo);
   const node = useMemo(() => (root ? findNode(root, selectedId ?? raizId) ?? root : undefined), [root, selectedId, raizId]);
   const path = useMemo(() => (root && node ? pathTo(root, node.id) : []), [root, node]);
   const parent = useMemo(() => (root && node ? parentOf(root, node.id) : undefined), [root, node]);
@@ -38,20 +43,32 @@ export default function App() {
 
   const ctx: UnitCtx | undefined = useMemo(() => {
     if (!meta.data || !root) return undefined;
-    const pop = esfera === "estado" ? meta.data.populacao.uf[uf] ?? NaN : meta.data.populacao.brasil;
+    let pop = meta.data.populacao.brasil;
+    if (esfera === "estado") pop = meta.data.populacao.uf[uf] ?? NaN;
+    else if (esfera === "municipios" && munEscopo === "uf") pop = meta.data.populacao.uf[munUf] ?? NaN;
+    else if (esfera === "municipios" && munEscopo === "municipio") pop = mun?.[3] ?? NaN;
     return { unidade, total: root.valor, pib: meta.data.pib.valor, pop };
-  }, [meta.data, root, esfera, uf, unidade]);
+  }, [meta.data, root, esfera, uf, munEscopo, munUf, mun, unidade]);
 
   const nomeEsfera =
     esfera === "uniao" ? "União" : esfera === "estado" ? meta.data?.ufs.find((u) => u.sigla === uf)?.nome ?? uf : esfera === "municipios" ? "Municípios" : "Estados e DF";
   const saldoChave = esfera === "estado" ? uf : esfera === "uniao" ? "uniao" : "estados";
 
   let centro: ReactNode;
-  if (tree.indisponivel) {
+  if (esfera === "municipios" && munEscopo === "municipio" && !munCod) {
+    centro = (
+      <div className="p-4">
+        <Aviso>Digite o nome de um município no campo “Município”, na barra acima, para ver as contas dele.</Aviso>
+      </div>
+    );
+  } else if (tree.indisponivel) {
+    const oQue = modo === "receitas" ? "receitas" : "despesas";
     centro = (
       <div className="p-4">
         <Aviso>
-          Dado não disponível: as receitas dos municípios ainda não foram agregadas nesta versão. Use “Despesas” ou escolha outra esfera.
+          {mun
+            ? `Dado não disponível: ${mun[1]} (${mun[2]}) não tem as ${oQue} de 2025 na Declaração de Contas Anuais (DCA) do Siconfi. Isso costuma acontecer quando o município não enviou as contas ao Tesouro.`
+            : `Dado não disponível: não há ${oQue} para esta seleção nas fontes usadas.`}
         </Aviso>
       </div>
     );
@@ -80,7 +97,7 @@ export default function App() {
       <a href="#conteudo" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-white focus:p-2">
         Pular para o conteúdo
       </a>
-      <TopBar meta={meta.data} />
+      <TopBar meta={meta.data} indice={indice.data} />
       <div className="relative flex-1 lg:grid lg:min-h-0 lg:grid-cols-[320px_minmax(0,1fr)_420px]">
         {/* Árvore: coluna fixa no desktop, gaveta no celular */}
         {drawerOpen && (

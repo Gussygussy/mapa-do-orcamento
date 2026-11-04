@@ -60,8 +60,11 @@ export interface SaldoItem {
 
 export type SaldoArquivo = Record<string, SaldoItem[]>;
 
-/** valor de cada nó (id sem o 1º segmento) em cada UF */
-export type CompararArquivo = Record<"despesas" | "receitas", Record<string, Record<string, number>>>;
+/** valor de cada nó (id sem o 1º segmento) em cada UF: governo estadual e soma dos municípios */
+export type CompararArquivo = Record<
+  "despesas" | "receitas" | "municipios_despesas" | "municipios_receitas",
+  Record<string, Record<string, number>>
+>;
 
 export interface Meta {
   atualizado_em: string;
@@ -69,7 +72,13 @@ export interface Meta {
   pib: { valor: number; unidade: string; fonte: Fonte; nota: string };
   populacao: { brasil: number; uf: Record<string, number>; fonte: Fonte };
   ufs: { sigla: string; nome: string; cod_ibge: number }[];
-  municipios: { entes_total: number; entes_com_dados: number; pct_entes: number; pct_populacao: number };
+  municipios: {
+    entes_total: number;
+    despesas_com_dados: number;
+    despesas_pct_populacao: number;
+    receitas_com_dados: number;
+    receitas_pct_populacao: number;
+  };
 }
 
 export type Modo = "despesas" | "receitas" | "saldo";
