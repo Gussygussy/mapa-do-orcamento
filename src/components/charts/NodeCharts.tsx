@@ -160,40 +160,106 @@ export function TreemapChart({ node, ctx, escuro, onSelect, highlight, height = 
   );
 }
 
+/** Mistura uma cor hex com branco (t = 0 mantém, 1 = branco). */
+function clarear(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * t));
+  return `#${c.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Corta o nome para caber no anel. */
+function encurtar(nome: string, max: number): string {
+  return nome.length > max ? nome.slice(0, max - 1) + "…" : nome;
+}
+
 export function SunburstChart({ node, ctx, escuro, onSelect, highlight, height = 460 }: ChartProps) {
   const t = tokens(escuro);
-  const data = positivos(node).map((f, i) => toDatum(f, node, 2, PALETA[i % PALETA.length], highlight));
+  const total = positivos(node).reduce((s, f) => s + f.valor, 0);
+  // Anel interno: cores da paleta. Anel externo: tons do pai, do mais forte ao mais claro.
+  const data = positivos(node).map((f, i) => {
+    const cor = isOutros(f) ? "#94a3b8" : PALETA[i % PALETA.length]!;
+    const d = toDatum(f, node, 1, cor, highlight);
+    const netos = positivos(f);
+    if (netos.length) {
+      d.children = netos.map((n, k) => {
+        const tom = isOutros(n) ? "#cbd5e1" : clarear(cor, 0.25 + 0.5 * (k / Math.max(1, netos.length - 1)));
+        return toDatum(n, f, 1, tom, highlight);
+      });
+    }
+    return d;
+  });
   const option: EChartsOption = {
     tooltip: baseTooltip(escuro, ctx),
     series: [
       {
         type: "sunburst",
         data: data as never,
-        radius: ["12%", "95%"],
+        center: ["50%", "50%"],
         nodeClick: false,
         sort: undefined,
-        itemStyle: { borderColor: t.borda, borderWidth: 1 },
-        label: {
-          rotate: "radial",
-          color: "#fff",
-          fontSize: 11,
-          minAngle: 12,
-          formatter: (p: unknown) => (p as { data: Datum }).data.name,
-        },
-        levels: [{}, { label: { minAngle: 12 } }, { label: { fontSize: 10, minAngle: 18 } }],
+        itemStyle: { borderColor: t.borda, borderWidth: 1.5 },
+        emphasis: { focus: "ancestor" },
+        levels: [
+          {},
+          {
+            // anel interno: nomes ao longo do arco, só onde cabem
+            r0: "26%",
+            r: "62%",
+            label: {
+              rotate: "tangential",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 600,
+              // texto reto não acompanha a curva: só fatias de 40° ou mais ganham nome, cortado ao
+              // comprimento do arco (~1 caractere a cada 7,5 px, raio conservador de 70 px)
+              minAngle: 40,
+              formatter: (p: unknown) => {
+                const d = (p as { data: Datum }).data;
+                const caracteres = Math.floor(((d.value / total) * 2 * Math.PI * 70) / 7.5);
+                return encurtar(d.name, Math.max(6, caracteres));
+              },
+            },
+          },
+          {
+            // anel externo: nomes curtos, só nas fatias grandes
+            r0: "62%",
+            r: "94%",
+            label: {
+              rotate: "radial",
+              color: "#1e293b",
+              fontSize: 10,
+              minAngle: 10,
+              align: "center",
+              // radial: o limite é a espessura do anel (~60 px)
+              formatter: (p: unknown) => encurtar((p as { data: Datum }).data.name, 11),
+            },
+          },
+        ],
       },
     ],
   };
   return (
-    <Chart
-      option={option}
-      label={descricao(node, ctx)}
-      height={height}
-      onClick={(p) => {
-        const d = p.data as Datum | undefined;
-        if (d?.id) onSelect(d.id);
-      }}
-    />
+    <div className="relative">
+      <Chart
+        option={option}
+        label={descricao(node, ctx)}
+        height={height}
+        onClick={(p) => {
+          const d = p.data as Datum | undefined;
+          if (d?.id) onSelect(d.id);
+        }}
+      />
+      {/* centro do anel: nome e total do item exibido */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+        <div className="max-w-[7.5rem] text-center leading-tight">
+          <div className="line-clamp-2 text-[11px] text-slate-600 dark:text-slate-400">{node.nome}</div>
+          <div className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">{formatMetric(total, ctx)}</div>
+        </div>
+      </div>
+      <p className="px-2 pb-1 text-xs text-slate-600 dark:text-slate-400">
+        Anel interno: subdivisões de “{node.nome}”. Anel externo: o nível seguinte. Passe o mouse para ver nomes e valores.
+      </p>
+    </div>
   );
 }
 
