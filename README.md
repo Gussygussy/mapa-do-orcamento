@@ -22,6 +22,7 @@ python scripts/fetch_siconfi.py tudo
 python scripts/fetch_rtn.py
 python scripts/fetch_mps.py
 python scripts/fetch_ibge.py
+python scripts/fetch_transparencia.py
 python scripts/build_tree.py
 python scripts/validate.py
 ```

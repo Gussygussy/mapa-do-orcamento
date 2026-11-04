@@ -376,6 +376,174 @@ def anexo4_uniao() -> dict[str, float]:
     return out
 
 
+FONTE_PORTAL = {
+    "nome": "Portal da Transparência (CGU) – Despesas: execução, jan–dez/2025 (download em lote)",
+    "url": "https://portaldatransparencia.gov.br/download-de-dados/despesas-execucao",
+    "tabela": "Valor empenhado por função, subfunção, programa e ação (soma dos 12 meses)",
+}
+SIGLAS = {"sus", "inss", "fies", "bpc", "rmv", "pac", "fnde", "pnae", "pronaf", "fgts", "fundeb", "ebserh",
+          "sesai", "funai", "incra", "ibge", "ipea", "cnpq", "capes", "anvisa", "ans", "anatel", "aneel", "anp",
+          "ana", "dnit", "pf", "prf", "ufs", "ifs", "df", "fcdf", "rgps", "rpps", "loas", "cide", "pis", "pasep",
+          "proagro", "pronatec", "enem", "sisu", "samu", "upa", "mcmv", "petrobras", "bndes", "embrapa", "fndct",
+          "ti", "pdde", "fiocruz", "ebc", "bacen", "cvm", "susep", "spu", "ii", "ipi", "iof", "irpf", "eja"}
+
+
+ACENTOS = {
+    "saude": "saúde", "publica": "pública", "publicas": "públicas", "publico": "público", "publicos": "públicos",
+    "basica": "básica", "basico": "básico", "basicas": "básicas", "familia": "família", "familias": "famílias",
+    "divida": "dívida", "seguranca": "segurança", "servico": "serviço", "servicos": "serviços",
+    "orcamento": "orçamento", "orcamentaria": "orçamentária", "orcamentario": "orçamentário", "credito": "crédito",
+    "creditos": "créditos", "economico": "econômico", "economica": "econômica", "agua": "água", "area": "área",
+    "areas": "áreas", "indigena": "indígena", "indigenas": "indígenas", "medio": "médio", "media": "média",
+    "primaria": "primária", "politica": "política", "politicas": "políticas", "unico": "único", "unica": "única",
+    "beneficio": "benefício", "beneficios": "benefícios", "beneficiarias": "beneficiárias", "salario": "salário",
+    "tecnico": "técnico", "tecnica": "técnica", "tecnologico": "tecnológico", "cientifica": "científica",
+    "cientifico": "científico", "academica": "acadêmica", "nao": "não", "aereo": "aéreo", "aerea": "aérea",
+    "rodoviario": "rodoviário", "ferroviario": "ferroviário", "hidroviario": "hidroviário", "transito": "trânsito",
+    "juridica": "jurídica", "juridico": "jurídico", "judiciaria": "judiciária", "judiciario": "judiciário",
+    "deficit": "déficit", "proprio": "próprio", "propria": "própria", "proprios": "próprios", "previdenciario": "previdenciário",
+    "previdenciarios": "previdenciários", "voluntaria": "voluntária", "voluntarias": "voluntárias", "obrigatoria": "obrigatória",
+    "pratica": "prática", "praticas": "práticas", "fisica": "física", "historico": "histórico", "patrimonio": "patrimônio",
+    "energetica": "energética", "eletrica": "elétrica", "petroleo": "petróleo", "minerio": "minério",
+    "estrategico": "estratégico", "estrategica": "estratégica", "logistica": "logística", "agricola": "agrícola",
+    "agropecuaria": "agropecuária", "pecuaria": "pecuária", "experiencia": "experiência", "veiculos": "veículos",
+    "veiculo": "veículo", "municipios": "municípios", "municipio": "município", "regiao": "região", "pais": "país",
+    "orgaos": "órgãos", "orgao": "órgão", "periodo": "período", "domestica": "doméstica", "ensino": "ensino",
+    "inclusao": "inclusão", "auxilio": "auxílio", "auxilios": "auxílios", "cadastro": "cadastro", "indice": "índice",
+    "contribuicao": "contribuição", "sistematica": "sistemática", "academico": "acadêmico", "itaipu": "Itaipu",
+}
+
+
+def acentuar(p: str) -> str:
+    """Restaura acentos de palavras comuns (a fonte publica sem acento)."""
+    if p in ACENTOS:
+        return ACENTOS[p]
+    if len(p) > 4 and p.endswith("coes"):
+        return p[:-4] + "ções"
+    if len(p) > 3 and p.endswith("cao"):
+        return p[:-3] + "ção"
+    if len(p) > 3 and p.endswith("oes"):
+        return p[:-3] + "ões"
+    if len(p) > 3 and p.endswith("ao"):
+        return p[:-2] + "ão"
+    if len(p) > 5 and p.endswith(("encia", "encias")):
+        return p.replace("encia", "ência")
+    if len(p) > 5 and p.endswith(("ancia", "ancias")):
+        return p.replace("ancia", "ância")
+    if len(p) > 4 and p.endswith(("avel", "aveis")):
+        return p.replace("avel", "ável").replace("aveis", "áveis")
+    if len(p) > 4 and p.endswith(("ivel", "iveis")):
+        return p.replace("ivel", "ível").replace("iveis", "íveis")
+    return p
+
+
+def frase(s: str) -> str:
+    """'FUNCIONAMENTO DO SUS' -> 'Funcionamento do SUS' (a fonte vem em caixa alta e sem acentos)."""
+    s = " ".join(str(s).split())
+    s = re.sub(r"^OPERACOES ESPECIAIS: ", "Operações especiais: ", s, flags=re.I)
+    out = []
+    for p in s.lower().split(" "):
+        m = re.match(r"^([(\"']*)(.*?)([),.;:\"'-]*)$", p)
+        pre, w, suf = m.groups() if m else ("", p, "")
+        if w in SIGLAS:
+            w = w.upper()
+        elif "-" in w or "/" in w:
+            w = re.sub(r"[a-z]+", lambda x: acentuar(x.group(0)), w)
+        else:
+            w = acentuar(w)
+        out.append(pre + w + suf)
+    t = " ".join(out)
+    return t[:1].upper() + t[1:]
+
+
+# Nomes de subfunção que diferem entre o Portal da Transparência e o RREO
+ALIAS_SUBFUNCAO = {
+    "outras transferencias": "transferencias",
+    "assistencia ao portador de deficiencia": "assistencia a pessoa com deficiencia",
+    "transporte hidroviario": "transporte aquaviario",
+    "combustiveis": "combustiveis minerais",
+    "infraestrutura urbana": "infra estrutura urbana",
+}
+
+
+def _norm(s: str) -> str:
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"\s*\(.*\)$", "", s)          # "Previdência Básica (RGPS/INSS)" -> "previdencia basica"
+    s = re.sub(r"[^a-z0-9]+", " ", s).strip()   # pontuação e hífens
+    return ALIAS_SUBFUNCAO.get(s, s)
+
+
+def acoes_uniao(root: Node) -> dict:
+    """Pendura programas e ações (Portal da Transparência) sob as subfunções do RREO.
+
+    Regras: o refinanciamento da dívida fica de fora (o RREO não o inclui); subfunções que já têm
+    filhos (RGPS) não são alteradas; se a soma do Portal passar da subfunção do RREO em mais de 1%,
+    o detalhe não é pendurado. Retorna estatísticas para notas e log."""
+    path = RAW / "transparencia" / "acoes_2025.csv"
+    if not path.exists():
+        print("  (sem data_raw/transparencia/acoes_2025.csv: rode scripts/fetch_transparencia.py)")
+        return {}
+    import pandas as pd  # só necessário aqui
+
+    df = pd.read_csv(path, dtype={"cod_funcao": str, "cod_subfuncao": str, "cod_programa": str, "cod_acao": str})
+    refin = df["subfuncao"].str.startswith("Refinanciamento", na=False)
+    stats = {"refinanciamento": df.loc[refin, "empenhado"].sum() / 1e6,
+             "financiamentos_com_retorno": df.loc[df["programa"].str.contains("FINANCIAMENTOS COM RETORNO", na=False),
+                                                  "empenhado"].sum() / 1e6,
+             "encargos_sem_refin": df.loc[(df["cod_funcao"] == "28") & ~refin, "empenhado"].sum() / 1e6,
+             "pulados": []}
+    df = df[~refin]
+    for fn in root["filhos"]:
+        cod_f = next((c for c, n in FUNCOES.items() if n == fn["nome"]), None)
+        dff = df[df["cod_funcao"] == cod_f]
+        if dff.empty:
+            continue
+        subs = {_norm(s["nome"]): s for s in fn.get("filhos", [])}
+        demais = subs.get("demais subfuncoes")
+        grupos: dict[str, list] = {}
+        for (cs, ns), g in dff.groupby(["cod_subfuncao", "subfuncao"]):
+            alvo = subs.get(_norm(ns))
+            chave = alvo["id"] if alvo else (demais["id"] if demais else None)
+            if chave:
+                grupos.setdefault(chave, []).append((cs, ns, g))
+        for sub in fn.get("filhos", []):
+            if sub["id"] not in grupos or sub.get("filhos"):
+                continue
+            filhos_sub: list[Node] = []
+            eh_demais = sub is demais
+            for cs, ns, g in grupos[sub["id"]]:
+                progs = []
+                base_id = f"{sub['id']}.s{cs}" if eh_demais else sub["id"]
+                for (cp, np_), gp in g.groupby(["cod_programa", "programa"]):
+                    pid = f"{base_id}.p{cp}"
+                    acoes = podar(
+                        node(f"{pid}.a{ca}", frase(na), v / 1e6, "empenhado", FONTE_PORTAL, nota=f"Ação orçamentária {ca}. Nome publicado sem acentos na fonte; acentos restaurados automaticamente.")
+                        for (ca, na), v in gp.groupby(["cod_acao", "acao"])["empenhado"].sum().items()
+                    )
+                    progs.append(node(pid, frase(np_), gp["empenhado"].sum() / 1e6, "empenhado", FONTE_PORTAL,
+                                      nota=f"Programa {cp}. Nome publicado sem acentos na fonte; acentos restaurados automaticamente.",
+                                      filhos=acoes or None))
+                progs = podar(progs)
+                if eh_demais:
+                    filhos_sub.append(node(base_id, frase(ns), g["empenhado"].sum() / 1e6, "empenhado", FONTE_PORTAL,
+                                           filhos=progs or None))
+                else:
+                    filhos_sub.extend(progs)
+            filhos_sub = podar(filhos_sub)
+            soma = sum(f["valor"] for f in filhos_sub)
+            if not filhos_sub or soma > sub["valor"] * 1.01 + 0.1:
+                stats["pulados"].append((sub["id"], round(soma, 1), round(sub["valor"], 1)))
+                continue
+            sub["filhos"] = filhos_sub
+            if sub["valor"] - soma > max(0.05, abs(sub["valor"]) * 0.0005):
+                sub["filhos"].append(node(
+                    f"{sub['id']}.outros", "Outros / não detalhado", sub["valor"] - soma, "empenhado", sub["fonte"],
+                    estimado=True,
+                    nota=("Diferença entre o total do RREO e a soma das ações no Portal da Transparência. "
+                          "O Portal não cobre a execução dos Poderes Legislativo e Judiciário nem do MPU e da DPU.")))
+    return stats
+
+
 def uniao_despesas(rtn: RTN, mps: dict) -> tuple[Node, dict]:
     P = "uniao.despesas"
     a02 = siconfi.rreo("RREO-Anexo 02", 1, offline=True)
@@ -494,6 +662,21 @@ def uniao_despesas(rtn: RTN, mps: dict) -> tuple[Node, dict]:
         "militares_inativos": indicador(a4["mil_inativos_despesa"], "R$ mi", f43, "Militares inativos (reformas e reservas) – liquidado."),
         "pensoes_militares": indicador(a4["mil_pensoes_despesa"], "R$ mi", f43, "Pensões militares – liquidado."),
     })
+
+    st = acoes_uniao(root)
+    if st:
+        br = lambda v: f"R$ {v / 1e3:,.1f} bi".replace(",", "X").replace(".", ",").replace("X", ".")  # noqa: E731
+        ee["nota"] += (f" No Portal da Transparência, Encargos Especiais soma {br(st['encargos_sem_refin'])} sem o "
+                       f"refinanciamento da dívida ({br(st['refinanciamento'])}, excluído aqui como no RREO); "
+                       f"dentro disso, \"Financiamentos com retorno\" somam {br(st['financiamentos_com_retorno'])}.")
+        ee["indicadores"]["refinanciamento_divida"] = indicador(
+            st["refinanciamento"], "R$ mi", FONTE_PORTAL, "Refinanciamento (rolagem) da dívida – fora da árvore.")
+        ee["indicadores"]["financiamentos_com_retorno"] = indicador(
+            st["financiamentos_com_retorno"], "R$ mi", FONTE_PORTAL, "Programa \"Financiamentos com retorno\" (empenhado).")
+        root["nota"] += (" Programas e ações vêm do Portal da Transparência, que não cobre Legislativo, Judiciário, "
+                         "MPU e DPU; a parte não detalhada aparece como \"Outros / não detalhado\".")
+        for pid, s, v in st["pulados"]:
+            print(f"  ações não penduradas em {pid}: Portal {s:,.1f} > RREO {v:,.1f}")
     return fechar(root), a4
 
 

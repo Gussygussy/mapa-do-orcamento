@@ -163,8 +163,12 @@ procure a versão atual e registre a mudança aqui.
   Anexo I-E** (despesa por função/subfunção, empenhado), que cobre 5.506 de 5.570 municípios
   (97,8% da população).
 - Resultado do RGPS: `scripts/fetch_mps.py` lê o PDF do MPS com `pdftotext` (poppler-utils).
-- Portal da Transparência e Siga Brasil não foram usados (exigem chave ou não têm API estável);
-  o detalhamento por programa/ação continua pendente.
+- Programas e ações da União: download em lote do Portal da Transparência, SEM chave
+  (`dadosabertos-download.cgu.gov.br/PortalDaTransparencia/saida/despesas-execucao/AAAAMM_Despesas.zip`,
+  valores mensais somados). Ver `scripts/fetch_transparencia.py`. Por função, bate com o RREO (Saúde,
+  Educação, Assistência: 0,00%), mas não cobre Legislativo, Judiciário, MPU e DPU, e inclui o
+  refinanciamento da dívida (R$ 1,40 tri), que é excluído. Nomes vêm sem acento; `build_tree.py`
+  restaura os acentos das palavras comuns e avisa na nota do nó.
 
 ## Dados de referência já levantados (seed e checagem)
 
@@ -255,6 +259,7 @@ npm run test           # vitest
 pip install -r scripts/requirements.txt          # + poppler-utils (pdftotext)
 python scripts/fetch_siconfi.py tudo             # ~30 min (municípios); usa cache em data_raw/
 python scripts/fetch_rtn.py && python scripts/fetch_mps.py && python scripts/fetch_ibge.py
+python scripts/fetch_transparencia.py            # 12 arquivos mensais, ~120 MB
 python scripts/build_tree.py && python scripts/validate.py
 ```
 
@@ -264,7 +269,7 @@ Fases 1 a 7 implementadas. Pendências conhecidas:
 - Encargos Especiais da União: RREO dá R$ 1.590,0 bi (com intra) e o CONORF R$ 1.455,6 bi; a
   diferença (R$ 134 bi) não foi explicada pelas fontes. `validate.py` registra como aviso e a UI mostra nota.
 - Receitas municipais não foram agregadas (só despesas, via DCA).
-- Detalhamento por programa/ação (Bolsa Família, BPC etc.) aparece só como indicador do nó.
+- "Serviço da dívida externa": o Portal (R$ 26,3 bi) passa do RREO (R$ 20,4 bi); ali as ações não são penduradas.
 - PIB por UF não está no pipeline, então "Comparar estados" não oferece % do PIB.
 
 ## Checagens antes de dizer "pronto"
